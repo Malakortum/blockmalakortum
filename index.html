@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>มอนสเตอร์หิวขยะ</title>
+<title>บล็อกระเบิดตาราง</title>
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@600;800&family=Pixelify+Sans:wght@700&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#05071a;font-family:"Pixelify Sans","Kanit",Tahoma,sans-serif;color:#fff}
@@ -40,16 +40,13 @@
 <canvas id="u"></canvas>
 
 <div id="start" class="card">
-  <h1>มอนสเตอร์หิวขยะ!</h1>
-  <p><b>โบกมือ</b> ไปแตะขยะเพื่อหยิบ แล้วป้อนให้มอนสเตอร์ให้ถูกตัว<br>ป้อนผิด มอนสเตอร์จะคายออกมา!</p>
-  <div class="row legend">
-    <span style="background:#3fbf5a">ขยะเปียก</span><span style="background:#ffcf33;color:#000">รีไซเคิล</span>
-    <span style="background:#3f8fff">ขยะทั่วไป</span><span style="background:#ff4f4f">ขยะอันตราย</span>
-  </div>
+  <h1>บล็อกระเบิดตาราง!</h1>
+  <p><b>แตะบล็อก</b>ด้านล่างเพื่อหยิบ แล้ว<b>ค้างมือไว้</b>ตรงที่จะวางบนกระดานแป๊บนึง<br>เติมแถวหรือคอลัมน์ให้เต็ม บล็อกจะระเบิด! ระเบิดช่องอัญมณีได้โบนัส</p>
   <div class="row">
     <button class="blue" onclick="startGame('solo')">เล่นคนเดียว</button>
     <button class="pink" onclick="startGame('duo')">แข่ง 2 คน</button>
   </div>
+  <p style="font-size:16px;color:#a9a2d6">รอบละ 90 วินาที · อยากคืนบล็อก ให้ลากกลับไปที่ถาดด้านล่าง</p>
   <div id="status">กำลังเปิดกล้อง...</div>
 </div>
 
@@ -62,63 +59,36 @@
 <script type="module">
 const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
 const ucanvas = document.getElementById('u'), U = ucanvas.getContext('2d');
+const video = document.getElementById('video'), statusEl = document.getElementById('status');
 const PX = 4, PXU = 2;
 const INK = '#000', PAPER = '#1a1340', THAI = 'Kanit,Tahoma,sans-serif';
 const P_COLORS = ['#ff5fa2', '#3fb6ff'], P_NAMES = ['ฝั่งซ้าย', 'ฝั่งขวา'];
-const GAME_TIME = 60;
+const N = 8, GAME_TIME = 90, DWELL = 0.45;
 let W, H;
 
-const MONSTERS = {
-  green:  {name:'ขยะเปียก',   body:'#3fbf5a', dark:'#23803a', lid:'#1d6b30'},
-  yellow: {name:'รีไซเคิล',   body:'#ffcf33', dark:'#c99a10', lid:'#a87d00'},
-  blue:   {name:'ขยะทั่วไป', body:'#3f8fff', dark:'#2560c0', lid:'#1c4a96'},
-  red:    {name:'ขยะอันตราย', body:'#ff4f4f', dark:'#c02e2e', lid:'#962020'},
+const SHAPES = [
+  [[0,0]], [[0,0],[1,0]], [[0,0],[0,1]], [[0,0],[1,0],[2,0]], [[0,0],[0,1],[0,2]],
+  [[0,0],[1,0],[2,0],[3,0]], [[0,0],[0,1],[0,2],[0,3]], [[0,0],[1,0],[2,0],[3,0],[4,0]], [[0,0],[0,1],[0,2],[0,3],[0,4]],
+  [[0,0],[1,0],[0,1],[1,1]], [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
+  [[0,0],[0,1],[1,1]], [[1,0],[0,1],[1,1]], [[0,0],[1,0],[0,1]], [[0,0],[1,0],[1,1]],
+  [[0,0],[0,1],[0,2],[1,2]], [[1,0],[1,1],[1,2],[0,2]], [[0,0],[1,0],[2,0],[0,1]], [[0,0],[1,0],[2,0],[2,1]],
+  [[0,0],[1,0],[2,0],[1,1]], [[1,0],[0,1],[1,1],[2,1]], [[0,0],[1,0],[1,1],[2,1]], [[1,0],[2,0],[0,1],[1,1]],
+  [[0,0],[0,1],[0,2],[1,2],[2,2]],
+];
+const COLORS = [['#ff5f6d','#ffb3b9','#a8243a'],['#ffcf33','#fff0a8','#b38a00'],['#3fbf5a','#a8f0b4','#1d6b30'],
+                ['#3f8fff','#b0d4ff','#1c4a96'],['#b48cff','#e2d2ff','#5b35a8'],['#ff8a3d','#ffd0a8','#a8521a'],['#3fd7d7','#b8f5f5','#1a7f80']];
+const SPECIALS = {
+  atom:{col:'#7be39a'}, star:{col:'#ffcf33'}, bolt:{col:'#8fe9ff'}, drop:{col:'#3fb6ff'}, leaf:{col:'#ff8ec3'}, magnet:{col:'#ff5f6d'},
 };
-const ITEMS = [
-  {e:'🍌',n:'เปลือกกล้วย',b:'green',f:'เศษอาหารหมักเป็นปุ๋ยให้ต้นไม้ได้'},
-  {e:'🍎',n:'แกนแอปเปิล',b:'green',f:'ขยะเปียกย่อยสลายได้เองตามธรรมชาติ'},
-  {e:'🥚',n:'เปลือกไข่',b:'green',f:'เปลือกไข่บดเป็นปุ๋ยให้ต้นไม้ได้'},
-  {e:'🍂',n:'ใบไม้แห้ง',b:'green',f:'ใบไม้แห้งทำปุ๋ยหมักได้ดีมาก'},
-  {e:'🐟',n:'ก้างปลา',b:'green',f:'เศษอาหารควรแยกออก ไม่ให้ปนกับขยะอื่น'},
-  {e:'🍉',n:'เปลือกแตงโม',b:'green',f:'เปลือกผลไม้เป็นอาหารของไส้เดือนได้'},
-  {e:'🧴',n:'ขวดพลาสติก',b:'yellow',f:'ขวดพลาสติกรีไซเคิลเป็นเสื้อได้นะ'},
-  {e:'🥫',n:'กระป๋อง',b:'yellow',f:'กระป๋องอะลูมิเนียมรีไซเคิลได้แทบไม่จำกัดครั้ง'},
-  {e:'📰',n:'หนังสือพิมพ์',b:'yellow',f:'รีไซเคิลกระดาษช่วยลดการตัดต้นไม้'},
-  {e:'📦',n:'กล่องกระดาษ',b:'yellow',f:'กล่องกระดาษนำกลับมาทำกล่องใหม่ได้'},
-  {e:'🍾',n:'ขวดแก้ว',b:'yellow',f:'แก้วหลอมแล้วทำขวดใหม่ได้เรื่อย ๆ'},
-  {e:'🍬',n:'ซองขนม',b:'blue',f:'ซองขนมมีหลายชั้นซ้อนกัน เลยรีไซเคิลยาก'},
-  {e:'🧻',n:'ทิชชู่ใช้แล้ว',b:'blue',f:'ทิชชู่ใช้แล้วสกปรก รีไซเคิลไม่ได้'},
-  {e:'🍱',n:'กล่องโฟม',b:'blue',f:'โฟมใช้เวลาย่อยสลายนานหลายร้อยปี'},
-  {e:'🩹',n:'พลาสเตอร์ยา',b:'blue',f:'ของใช้แล้วที่ปนเปื้อน ทิ้งถังทั่วไป'},
-  {e:'🔋',n:'ถ่านไฟฉาย',b:'red',f:'ถ่านมีสารเคมีอันตรายต่อดินและน้ำ'},
-  {e:'💡',n:'หลอดไฟ',b:'red',f:'หลอดไฟบางชนิดมีสารปรอทอยู่ข้างใน'},
-  {e:'💊',n:'ยาหมดอายุ',b:'red',f:'ยาหมดอายุห้ามทิ้งรวมกับขยะทั่วไป'},
-  {e:'📱',n:'มือถือเก่า',b:'red',f:'ขยะอิเล็กทรอนิกส์มีโลหะหนัก ต้องแยกทิ้ง'},
-  {e:'🌡️',n:'ปรอทวัดไข้',b:'red',f:'ปรอทเป็นพิษ ถ้าแตกห้ามจับด้วยมือ'},
-  // เพิ่ม
-  {e:'🍚',n:'ข้าวเหลือ',b:'green',f:'กินข้าวให้หมดจาน ช่วยลดขยะเปียกได้'},
-  {e:'🥕',n:'เศษผัก',b:'green',f:'เศษผักทำปุ๋ยหมักหรือน้ำหมักชีวภาพได้'},
-  {e:'☕',n:'กากกาแฟ',b:'green',f:'กากกาแฟโรยดินช่วยบำรุงต้นไม้ได้'},
-  {e:'🥥',n:'กะลามะพร้าว',b:'green',f:'กะลามะพร้าวย่อยสลายได้ตามธรรมชาติ'},
-  {e:'🍗',n:'กระดูกไก่',b:'green',f:'เศษอาหารทุกชนิดเป็นขยะเปียก'},
-  {e:'🥛',n:'กล่องนม',b:'yellow',f:'กล่องนมรีไซเคิลทำเป็นแผ่นหลังคาได้'},
-  {e:'📄',n:'กระดาษ A4',b:'yellow',f:'กระดาษใช้สองหน้าก่อนทิ้ง ช่วยประหยัดต้นไม้'},
-  {e:'🥤',n:'แก้วพลาสติก',b:'yellow',f:'ล้างแก้วก่อนทิ้ง จะรีไซเคิลได้ง่ายขึ้น'},
-  {e:'🔩',n:'เศษเหล็ก',b:'yellow',f:'เหล็กหลอมแล้วนำมาใช้ใหม่ได้'},
-  {e:'🍥',n:'ซองบะหมี่',b:'blue',f:'ซองบะหมี่เปื้อนน้ำมัน รีไซเคิลยาก'},
-  {e:'🥢',n:'ตะเกียบใช้แล้ว',b:'blue',f:'ของใช้แล้วที่เปื้อนอาหาร ทิ้งถังทั่วไป'},
-  {e:'😷',n:'หน้ากากอนามัย',b:'blue',f:'หน้ากากใช้แล้ว พับใส่ถุงก่อนทิ้งนะ'},
-  {e:'🧸',n:'ตุ๊กตาขาด',b:'blue',f:'ของเล่นที่ยังดีอยู่ บริจาคต่อได้นะ'},
-  {e:'🥡',n:'กล่องข้าวเปื้อน',b:'blue',f:'กล่องที่เปื้อนอาหารมาก รีไซเคิลไม่ได้'},
-  {e:'🧯',n:'กระป๋องสเปรย์',b:'red',f:'กระป๋องสเปรย์มีแรงดัน ห้ามเผาเด็ดขาด'},
-  {e:'🎨',n:'กระป๋องสี',b:'red',f:'สีมีสารเคมี ต้องแยกทิ้งเป็นขยะอันตราย'},
-  {e:'🧪',n:'น้ำยาเคมี',b:'red',f:'น้ำยาเคมีห้ามเทลงท่อ เป็นอันตรายต่อสัตว์น้ำ'},
-  {e:'🔌',n:'สายชาร์จเสีย',b:'red',f:'เครื่องใช้ไฟฟ้าเสียเป็นขยะอันตราย'},
+const THEMES = [
+  {at:0,    name:'ด่าน 1 ท้องฟ้ายามค่ำ',     bg:'#1a1340', grid:'#2a2160'},
+  {at:150,  name:'ด่าน 2 มหาสมุทร',    bg:'#0f2d3a', grid:'#1d4a5c'},
+  {at:350,  name:'ด่าน 3 ลาวาเดือด', bg:'#3a1a2a', grid:'#5c2a44'},
+  {at:600, name:'ด่าน 4 ราชาบล็อก',   bg:'#0a0a24', grid:'#24245a'},
 ];
 
-let mode = 'solo', level = 1, state = 'menu', players = [], countdown = 0, lastT = 0, playT = 0, lastBeep = 4;
-let particles = [], stars = [], banner = null, keys = [];
-for (let i=0;i<90;i++) stars.push({x:Math.random(), y:Math.random(), s:Math.random()*2+0.5, p:Math.random()*6});
+let mode = 'solo', state = 'menu', players = [], countdown = 0, lastT = 0, lastBeep = 4, playT = 0;
+let particles = [], banner = null, shake = 0;
 
 function resize(){
   W = innerWidth; H = innerHeight;
@@ -130,7 +100,7 @@ function resize(){
 }
 addEventListener('resize', resize);
 
-// ---------- sound ----------
+// ---------- เสียง ----------
 let actx = null;
 function audio(){ if (!actx) try { actx = new (window.AudioContext||window.webkitAudioContext)(); } catch {} return actx; }
 function tone(f, d=0.15, type='square', vol=0.1, delay=0, f2=null){
@@ -140,22 +110,27 @@ function tone(f, d=0.15, type='square', vol=0.1, delay=0, f2=null){
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
   o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.05);
 }
+function noise(d=0.2, vol=0.12){
+  const a = audio(); if (!a) return;
+  const b = a.createBuffer(1, a.sampleRate*d, a.sampleRate), ch = b.getChannelData(0);
+  for (let i=0;i<ch.length;i++) ch[i] = (Math.random()*2-1) * (1 - i/ch.length);
+  const s = a.createBufferSource(), g = a.createGain(); g.gain.value = vol; s.buffer = b; s.connect(g).connect(a.destination); s.start();
+}
 const sfx = {
   grab:  ()=> tone(440, 0.07, 'triangle', 0.12),
-  chomp: ()=>{ for (let i=0;i<3;i++) tone(180-i*20, 0.07, 'square', 0.12, i*0.11); tone(880,0.12,'square',0.08,0.36); tone(1320,0.18,'square',0.08,0.45); },
-  yuck:  ()=> tone(400, 0.45, 'sawtooth', 0.09, 0, 90),
-  combo: n => [660,880,1100,1320].slice(0, Math.min(4, n)).forEach((f,i)=>tone(f,0.1,'square',0.08,0.5+i*0.07)),
+  place: ()=>{ tone(220, 0.08, 'square', 0.12); tone(330, 0.06, 'square', 0.06, 0.05); },
+  back:  ()=> tone(300, 0.1, 'triangle', 0.08, 0, 200),
+  clear: n => { noise(0.25 + n*0.1, 0.14); for (let i=0;i<2+n;i++) tone(523*Math.pow(1.26,i), 0.12, 'square', 0.08, 0.05+i*0.07); },
+  special:()=> [880,1175,1568,2093].forEach((f,i)=>tone(f,0.1,'triangle',0.1,0.3+i*0.06)),
+  level: ()=> [392,523,659,784,1046].forEach((f,i)=>tone(f,0.16,'square',0.09,i*0.09)),
+  tick:  ()=> tone(1000, 0.04, 'square', 0.04),
   beep:  ()=> tone(520, 0.15, 'square', 0.1),
   go:    ()=> tone(880, 0.35, 'square', 0.12),
   win:   ()=> [523,659,784,1046,1318].forEach((f,i)=>tone(f,0.25,'square',0.1,i*0.12)),
+  over:  ()=> [523,392,330,262].forEach((f,i)=>tone(f,0.3,'triangle',0.12,i*0.2)),
 };
 
-// ---------- menu ----------
-window.setLevel = lv => {
-  level = lv;
-  document.getElementById('lv1').classList.toggle('on', lv===1);
-  document.getElementById('lv2').classList.toggle('on', lv===2);
-};
+// ---------- เมนู ----------
 window.showStart = ()=>{
   state = 'menu'; players = [];
   document.getElementById('end').classList.add('hidden');
@@ -163,13 +138,9 @@ window.showStart = ()=>{
 };
 window.startGame = m => {
   audio(); mode = m;
-  keys = ['green','yellow','blue','red'];
-  const pool = ITEMS.filter(i => keys.includes(i.b));
-  // สุ่มแบบวนครบทุกชิ้นก่อนซ้ำ และสลับประเภทให้ทั่วถึง
-  const order = []; while (order.length < 120) order.push(...[...pool].sort(()=>Math.random()-0.5));
-  players = mode==='solo' ? [makePlayer(0,0,1,order)] : [makePlayer(0,0,0.5,order), makePlayer(1,0.5,1,order)];
+  players = mode==='solo' ? [makePlayer(0,0,1)] : [makePlayer(0,0,0.5), makePlayer(1,0.5,1)];
   players.forEach(layoutPlayer);
-  particles = []; banner = null; state = 'countdown'; countdown = 3.999; lastBeep = 4;
+  particles = []; banner = null; state = 'countdown'; countdown = 3.999; lastBeep = 4; playT = 0;
   document.getElementById('start').classList.add('hidden');
   document.getElementById('end').classList.add('hidden');
 };
@@ -178,103 +149,139 @@ addEventListener('keydown', e=>{
   if (e.code === 'Escape') showStart();
 });
 
-// ---------- players ----------
-function makePlayer(idx, f0, f1, order){
-  return {idx, f0, f1, order, k:0, current:null, held:false, score:0, wrong:0, combo:0, best:0,
-          hand:{x:-999,y:-999,seen:false}, pts:null, lost:0, msg:null, mons:[], R:40};
+// ---------- ผู้เล่น ----------
+function makePlayer(idx, f0, f1){
+  const p = {idx, f0, f1, grid: [...Array(N)].map(()=>Array(N).fill(null)), special: [...Array(N)].map(()=>Array(N).fill(null)),
+    tray: [], held: null, dwell: 0, ghost: null, score: 0, lines: 0, streak: 0, best: 0, theme: 0, helped: false, done: false,
+    clearing: [], msg: null, hand:{x:-999,y:-999,seen:false}, pts:null, lost:0};
+  newTray(p); addSpecial(p); addSpecial(p);
+  return p;
 }
 function layoutPlayer(p){
-  p.x0 = p.f0*W; p.x1 = p.f1*W;
-  const w = p.x1-p.x0, n = keys.length, slot = w/n;
-  const mw = Math.min(slot*0.72, 240), mh = Math.min(H*0.3, mw*1.15);
-  p.R = Math.min(w*0.07, H*0.075);
-  const old = p.mons;
-  p.mons = keys.map((k,i)=>({k, ...MONSTERS[k], x: p.x0 + slot*(i+0.5) - mw/2, y: H - mh - 22, w: mw, h: mh,
-    open: 0, chomp: 0, happy: 0, yuck: 0, shake: 0, ph: Math.random()*6, ...(old[i] ? {open:old[i].open} : {})}));
+  p.x0 = p.f0*W; p.x1 = p.f1*W; const w = p.x1 - p.x0;
+  p.S = Math.floor(Math.min(w*0.66, H*0.6) / N) * N; p.cs = p.S / N;
+  p.bx = p.x0 + (w - p.S)/2; p.by = H*0.14 + (mode==='duo' ? H*0.04 : 0);
+  p.ty = p.by + p.S + (H - (p.by + p.S))/2 + 6;
+  p.slots = [0,1,2].map(i => ({x: p.x0 + w*(i*2+1)/6, y: p.ty}));
 }
-function nextItem(p){
-  const it = p.order[p.k++ % p.order.length], w = p.x1-p.x0;
-  p.current = {...it, x: p.x0 + w*(0.25+Math.random()*0.5), y: -60, wob: 0, bounce: 0, spitVX: 0, spitVY: 0};
+function randPiece(){ const s = SHAPES[Math.floor(Math.random()*SHAPES.length)], c = COLORS[Math.floor(Math.random()*COLORS.length)]; return {cells: s, col: c, w: Math.max(...s.map(q=>q[0]))+1, h: Math.max(...s.map(q=>q[1]))+1}; }
+function newTray(p){
+  // ให้มีอย่างน้อย 1 ชิ้นที่วางได้ ถ้าเป็นไปได้
+  for (let tries=0; tries<20; tries++){ p.tray = [randPiece(), randPiece(), randPiece()]; if (p.tray.some(pc => canPlaceAnywhere(p, pc))) break; }
 }
-function updatePlayer(p, dt){
-  for (const m of p.mons){ m.chomp = Math.max(0,m.chomp-dt); m.happy = Math.max(0,m.happy-dt); m.yuck = Math.max(0,m.yuck-dt); m.shake = Math.max(0,m.shake-dt*2); }
-  const c = p.current; if (!c) return;
-  const h = p.hand;
-  if (c.bounce > 0){ // ถูกคายออกมา
-    c.bounce -= dt; c.x += c.spitVX*dt; c.y += c.spitVY*dt; c.spitVY += 900*dt;
-    c.x = Math.max(p.x0+p.R, Math.min(p.x1-p.R, c.x));
-    if (c.bounce <= 0) c.y = Math.min(c.y, H*0.35);
-  } else if (!h.seen){ p.lost += dt; if (p.held && p.lost > 0.6) p.held = false; }
-  else {
-    p.lost = 0;
-    if (!p.held && Math.hypot(c.x-h.x, c.y-h.y) < p.R*1.5){ p.held = true; sfx.grab(); }
-    if (p.held){
-      c.x += (h.x-c.x)*0.5; c.y += (h.y-c.y)*0.5;
-      c.x = Math.max(p.x0+p.R, Math.min(p.x1-p.R, c.x));
-      const m = p.mons.find(m => c.x > m.x-10 && c.x < m.x+m.w+10 && c.y > m.y+m.h*0.05);
-      if (m) feed(p, m);
-    }
-  }
-  if (!p.held && c.bounce <= 0){
-    c.wob += dt*2;
-    const stopY = H*0.33;
-    if (c.y < stopY) c.y = Math.min(stopY, c.y + H*0.3*dt); else c.y = stopY + Math.sin(c.wob)*12;
-  }
-  // ปากอ้าตามระยะขยะที่ถืออยู่
-  for (const m of p.mons){
-    const near = p.held ? Math.max(0, 1 - Math.hypot(c.x-(m.x+m.w/2), c.y-(m.y+m.h*0.45)) / (m.w*1.6)) : 0;
-    m.open += (near - m.open)*Math.min(1, dt*10);
-  }
+function fits(p, pc, gx, gy){
+  for (const [dx,dy] of pc.cells){ const x = gx+dx, y = gy+dy; if (x<0||y<0||x>=N||y>=N||p.grid[y][x]) return false; }
+  return true;
 }
-function feed(p, m){
-  const c = p.current; p.held = false;
-  if (m.k === c.b){
-    p.score++; p.combo++; p.best = Math.max(p.best, p.combo);
-    m.chomp = 0.55; m.happy = 1.1; sfx.chomp();
-    if (p.combo >= 3) sfx.combo(p.combo - 1);
-    crumbs(m.x+m.w/2, m.y+m.h*0.4, [m.body,'#fff','#ffcf33']);
-    p.msg = {ok:true, title: p.combo >= 3 ? `อร่อย! คอมโบ x${p.combo}` : `อร่อย! ${c.n} → ${m.name}`, text: c.f, t: mode==='solo'?3:1.6};
-    nextItem(p);
-  } else {
-    p.wrong++; p.combo = 0; m.yuck = 1; m.shake = 1; sfx.yuck();
-    p.msg = {ok:false, title:`แหวะ! ${c.n} ไม่ใช่${m.name}`, text: true ? `ต้องป้อนให้ตัว "${MONSTERS[c.b].name}" นะ` : '', t:2.4};
-    c.bounce = 0.7; c.spitVX = (Math.random()-0.5)*500; c.spitVY = -900;
-  }
+function canPlaceAnywhere(p, pc){ for (let y=0;y<N;y++) for (let x=0;x<N;x++) if (fits(p, pc, x, y)) return true; return false; }
+function addSpecial(p){
+  const empty = []; for (let y=0;y<N;y++) for (let x=0;x<N;x++) if (!p.grid[y][x] && !p.special[y][x]) empty.push([x,y]);
+  if (!empty.length) return;
+  const [x,y] = empty[Math.floor(Math.random()*empty.length)], keys = Object.keys(SPECIALS);
+  p.special[y][x] = keys[Math.floor(Math.random()*keys.length)];
 }
-function crumbs(x, y, colors){
-  for (let i=0;i<26;i++){ const a=Math.random()*Math.PI*2, v=150+Math.random()*320;
-    particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-200,c:colors[i%colors.length],life:1}); }
-}
-function confetti(x0, x1){
-  const cols = ['#ff5fa2','#3fb6ff','#ffcf33','#7be39a','#ffffff','#b48cff'];
-  for (let i=0;i<220;i++) particles.push({x:x0+Math.random()*(x1-x0), y:-20-Math.random()*H*0.5, vx:(Math.random()-0.5)*120, vy:100+Math.random()*200, c:cols[i%cols.length], life:3.5, slow:true});
-}
+function countSpecials(p){ let n=0; for (const r of p.special) for (const s of r) if (s) n++; return n; }
 
-// ---------- end ----------
+function updatePlayer(p, dt){
+  if (p.done) return;
+  for (const c of p.clearing) c.t -= dt; p.clearing = p.clearing.filter(c => c.t > 0);
+  const h = p.hand;
+  if (!h.seen){ p.lost += dt; if (p.held !== null && p.lost > 0.8){ p.held = null; p.ghost = null; } return; }
+  p.lost = 0;
+  if (p.held === null){
+    // ค้างมือบนบล็อกแป๊บนึงถึงจะหยิบ กันหยิบผิดชิ้นตอนมือผ่าน
+    let over = -1;
+    p.tray.forEach((pc, i) => { if (pc && Math.hypot(h.x - p.slots[i].x, h.y - p.slots[i].y) < (p.x1-p.x0)*0.13) over = i; });
+    if (over !== p.hover){ p.hover = over; p.grabT = 0; }
+    if (over >= 0){ p.grabT += dt; if (p.grabT >= 0.25){ p.held = over; p.dwell = 0; p.leftTray = false; p.hover = -1; sfx.grab(); } }
+    return;
+  }
+  const pc = p.tray[p.held];
+  // ชิ้นที่ถือลอยอยู่เหนือมือ จะได้ไม่บังด้วยมือ
+  const px = h.x - pc.w*p.cs/2, py = h.y - pc.h*p.cs - p.cs*0.8;
+  const gx = Math.round((px - p.bx)/p.cs), gy = Math.round((py - p.by)/p.cs);
+  const inTray = h.y > p.ty - p.cs*0.6 && Math.abs(h.x - p.slots[p.held].x) < (p.x1-p.x0)*0.16;
+  if (!inTray && h.y < p.ty - p.cs*1.5) p.leftTray = true;
+  if (inTray && p.leftTray){ p.held = null; p.ghost = null; sfx.back(); return; }
+  if (fits(p, pc, gx, gy)){
+    if (p.ghost && p.ghost.x === gx && p.ghost.y === gy) p.dwell += dt; else { p.ghost = {x:gx, y:gy}; p.dwell = 0; }
+    if (p.dwell >= DWELL) place(p, pc, gx, gy);
+  } else { p.ghost = null; p.dwell = 0; }
+}
+function place(p, pc, gx, gy){
+  for (const [dx,dy] of pc.cells) p.grid[gy+dy][gx+dx] = pc.col;
+  p.score += pc.cells.length; sfx.place();
+  p.tray[p.held] = null; p.held = null; p.ghost = null; p.dwell = 0;
+  // หาแถว/คอลัมน์ที่เต็ม
+  const rows = [], cols = [];
+  for (let y=0;y<N;y++) if (p.grid[y].every(c=>c)) rows.push(y);
+  for (let x=0;x<N;x++) if (p.grid.every(r=>r[x])) cols.push(x);
+  const n = rows.length + cols.length;
+  if (n){
+    const cells = new Set(); rows.forEach(y => { for (let x=0;x<N;x++) cells.add(x+','+y); }); cols.forEach(x => { for (let y=0;y<N;y++) cells.add(x+','+y); });
+    let gotSpecial = null;
+    for (const k of cells){ const [x,y] = k.split(',').map(Number);
+      p.clearing.push({x, y, col: p.grid[y][x], t: 0.45});
+      const cx = p.bx + (x+0.5)*p.cs, cy = p.by + (y+0.5)*p.cs; burst(cx, cy, [p.grid[y][x][0], p.grid[y][x][1], '#fff'], 4);
+      if (p.special[y][x]){ gotSpecial = p.special[y][x]; p.special[y][x] = null; }
+      p.grid[y][x] = null; }
+    p.streak++; p.best = Math.max(p.best, p.streak); p.lines += n;
+    const pts = 10*n*n + (p.streak > 1 ? 10*p.streak : 0) + (gotSpecial ? 50 : 0);
+    p.score += pts; sfx.clear(n); shake = Math.min(0.6, 0.15*n);
+    const words = ['', 'เยี่ยม!', 'DOUBLE!', 'TRIPLE!', 'MEGA BLAST!'];
+    p.msg = {title: (words[Math.min(n,4)]) + (p.streak > 1 ? `  ต่อเนื่อง x${p.streak}` : ''), pts, t: 1.6,
+             gem: !!gotSpecial};
+    if (gotSpecial) sfx.special();
+    if (n >= 3){ confettiBurst(p.bx + p.S/2, p.by + p.S/2); }
+  } else p.streak = 0;
+  if (countSpecials(p) < 2 && Math.random() < 0.5) addSpecial(p);
+  // ธีมเลเวล
+  const th = THEMES.reduce((a, t, i) => p.score >= t.at ? i : a, 0);
+  if (th > p.theme){ p.theme = th; sfx.level(); p.msg = {title: `ขึ้น${THEMES[th].name}!`, pts: 0, t: 2, level: true}; }
+  if (p.tray.every(t => !t)) newTray(p);
+  checkStuck(p);
+}
+function checkStuck(p){
+  const left = p.tray.filter(Boolean);
+  if (left.some(pc => canPlaceAnywhere(p, pc))) return;
+  if (!p.helped){
+    p.helped = true;
+    p.tray = [{cells:[[0,0]], col:COLORS[1], w:1, h:1}, {cells:[[0,0],[1,0]], col:COLORS[2], w:2, h:1}, {cells:[[0,0]], col:COLORS[3], w:1, h:1}];
+    p.msg = {title:'ตัวช่วยมาแล้ว! ได้บล็อกเล็ก', pts:0, t:2, level:true};
+    if (p.tray.some(pc => canPlaceAnywhere(p, pc))) return;
+  }
+  p.done = true; p.msg = {title:'วางต่อไม่ได้แล้ว!', pts:0, t:3};
+  if (players.every(q => q.done)) endGame();
+}
+function burst(x, y, cols, n){ for (let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, v=120+Math.random()*320; particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-200,c:cols[i%cols.length],life:1,g:900}); } }
+function confettiBurst(x, y){ const cols=['#ff5fa2','#3fb6ff','#ffcf33','#7be39a','#ffffff']; for (let i=0;i<70;i++){ const a=Math.random()*Math.PI*2, v=250+Math.random()*450; particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-300,c:cols[i%5],life:1.5,g:700}); } }
+function confetti(x0, x1){ const cols=['#ff5fa2','#3fb6ff','#ffcf33','#7be39a','#ffffff','#b48cff']; for (let i=0;i<220;i++) particles.push({x:x0+Math.random()*(x1-x0), y:-20-Math.random()*H*0.5, vx:(Math.random()-0.5)*120, vy:100+Math.random()*200, c:cols[i%6], life:3.5, g:30}); }
+
+// ---------- จบเกม ----------
 function endGame(){
-  state = 'over'; sfx.win();
+  if (state !== 'play') return;
+  state = 'over'; players.forEach(p => { p.held = null; p.ghost = null; });
   if (mode === 'solo'){
-    const p = players[0]; confetti(0, W);
-    const title = p.score >= 15 ? 'ฮีโร่รักษ์โลกระดับตำนาน!' : p.score >= 10 ? 'ฮีโร่รักษ์โลกระดับทอง!' : p.score >= 5 ? 'ฮีโร่รักษ์โลกระดับเงิน!' : 'ฮีโร่รักษ์โลกฝึกหัด!';
+    const p = players[0]; sfx.win(); confetti(0, W);
+    const title = p.score >= 600 ? 'ราชาบล็อก!' : p.score >= 350 ? 'เซียนบล็อก!' : p.score >= 150 ? 'นักต่อบล็อกฝีมือดี!' : 'นักต่อบล็อกมือใหม่!';
     setTimeout(()=>{
       pixelTitle(document.getElementById('endTitle'), title);
-      document.getElementById('endText').innerHTML = `ป้อนถูก <b>${p.score}</b> ชิ้น · ป้อนผิด ${p.wrong} ชิ้น · คอมโบสูงสุด x${p.best}<br><br><span style="font-size:.85em">กลับบ้านไปช่วยที่บ้านแยกขยะด้วยนะ มอนสเตอร์ฝากมา</span>`;
+      document.getElementById('endText').innerHTML = `คะแนน <b>${p.score}</b> · ระเบิดไป ${p.lines} แถว · ระเบิดต่อเนื่องสูงสุด x${p.best}<br><span style="font-size:.85em">ไปถึง${THEMES[p.theme].name} เก่งมาก!</span>`;
       document.getElementById('end').classList.remove('hidden');
     }, 1300);
     return;
   }
-  const [a, b] = players;
-  const w = a.score > b.score ? a : b.score > a.score ? b : (a.wrong < b.wrong ? a : b.wrong < a.wrong ? b : null);
-  if (w){ confetti(w.x0, w.x1); banner = {p: w}; } else confetti(0, W);
+  const [a, b] = players, w = a.score > b.score ? a : b.score > a.score ? b : null;
+  sfx.win(); if (w){ confetti(w.x0, w.x1); banner = {p: w}; } else confetti(0, W);
   setTimeout(()=>{
     pixelTitle(document.getElementById('endTitle'), w ? `${P_NAMES[w.idx]}ชนะ!` : 'เสมอกัน! เก่งทั้งคู่', w ? P_COLORS[w.idx] : '#ffcf33');
-    const line = p => `<b style="color:${P_COLORS[p.idx]}">${P_NAMES[p.idx]}</b> ป้อนถูก ${p.score} ชิ้น · ผิด ${p.wrong} · คอมโบสูงสุด x${p.best}`;
+    const line = p => `<b style="color:${P_COLORS[p.idx]}">${P_NAMES[p.idx]}</b> ${p.score} คะแนน · ระเบิด ${p.lines} แถว`;
     document.getElementById('endText').innerHTML = `${line(a)}<br>${line(b)}`;
     document.getElementById('end').classList.remove('hidden');
-  }, 2200);
+  }, 2000);
 }
 
-// ---------- hand tracking ----------
+// ---------- จับมือ ----------
 let handOK = false, landmarker = null, lastVideoTime = -1;
 addEventListener('mousemove', e=>{
   if (handOK || !players.length) return;
@@ -299,7 +306,6 @@ async function initHands(){
     statusEl.textContent = 'เปิดกล้องหรือตัวจับมือไม่ได้ ตอนนี้เล่นด้วยเมาส์ได้ · ตรวจว่าอนุญาตกล้องและต่ออินเทอร์เน็ต';
   }
 }
-const video = document.getElementById('video'), statusEl = document.getElementById('status');
 const mapPt = p => ({x:(1-(0.5+(p.x-0.5)*1.4))*W, y:(0.5+(p.y-0.5)*1.4)*H});
 function trackHands(){
   if (!handOK || video.readyState < 2 || video.currentTime === lastVideoTime) return;
@@ -313,13 +319,13 @@ function trackHands(){
     const f = assigned[i];
     if (!f){ p.hand.seen = false; p.pts = null; return; }
     p.pts = f.pts;
-    p.hand.x = p.hand.seen ? p.hand.x + (f.c.x-p.hand.x)*0.55 : f.c.x;
-    p.hand.y = p.hand.seen ? p.hand.y + (f.c.y-p.hand.y)*0.55 : f.c.y;
+    p.hand.x = p.hand.seen ? p.hand.x + (f.c.x-p.hand.x)*0.5 : f.c.x;
+    p.hand.y = p.hand.seen ? p.hand.y + (f.c.y-p.hand.y)*0.5 : f.c.y;
     p.hand.seen = true;
   });
 }
 
-// ---------- drawing helpers ----------
+// ---------- วาด ----------
 function sticker(x,y,w,h,fill,sh=6){
   const ctx = U;
   ctx.fillStyle='#000'; ctx.fillRect(x-4+sh,y-4+sh,w+8,h+8);
@@ -329,7 +335,7 @@ function sticker(x,y,w,h,fill,sh=6){
 }
 function label(t, x, y, size, fill='#fff'){
   const ctx = U;
-  ctx.font = `800 ${size}px ${/^[0-9A-Za-z!?\sx/.]+$/.test(t) ? '"Press Start 2P",' : ''}${THAI}`;
+  ctx.font = `800 ${size}px ${/^[0-9A-Za-z!?\sx/.+]+$/.test(t) ? '"Press Start 2P",' : ''}${THAI}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'miter';
   ctx.lineWidth = Math.max(6, size*0.28); ctx.strokeStyle = INK; ctx.strokeText(t, x, y);
   ctx.fillStyle = fill; ctx.fillText(t, x, y);
@@ -340,87 +346,72 @@ function drawBG(t){
     ctx.save(); ctx.translate(W,0); ctx.scale(-1,1);
     ctx.drawImage(video,(W-vw*s)/2,(H-vh*s)/2,vw*s,vh*s); ctx.restore();
   } else {
-    ctx.fillStyle='#4fc3f7'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#8fd96a'; ctx.fillRect(0,H*0.72,W,H*0.28);
-    ctx.fillStyle='#fff'; for (const s of stars.slice(0,8)){ const cx=((s.x*W + t*0.02*s.s) % (W+200))-100, cy=s.y*H*0.4; ctx.fillRect(cx,cy,80,24); ctx.fillRect(cx+16,cy-16,48,16); }
+    ctx.fillStyle='#120c33'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; for (let i=0;i<70;i++){ const x=(i*197)%W, y=(i*113)%H; ctx.globalAlpha = (Math.sin(t/400+i)>0)?0.8:0.25; ctx.fillRect(x,y,i%3?4:8,i%3?4:8); }
+    ctx.globalAlpha = 1;
   }
 }
-
-// ---------- monster ----------
-function drawMonster(m, p, t){
-  const bob = Math.round(Math.sin(t/400 + m.ph)*1.5)*4;
-  const sx = m.shake > 0 ? Math.round(Math.sin(t/30)*3)*4*m.shake : 0;
-  const x = m.x + sx, y = m.y + bob, w = m.w, h = m.h;
-  const chompOpen = m.chomp > 0 ? Math.abs(Math.sin(m.chomp*17)) : 0;
-  const open = Math.max(m.open, chompOpen, m.yuck > 0.5 ? 0.8 : 0);
-  // ตัว (ถัง) ขอบดำ
-  ctx.fillStyle = INK; ctx.fillRect(x-8, y+h*0.14-8, w+16, h*0.86+16);
-  ctx.fillStyle = m.body; ctx.fillRect(x, y+h*0.14, w, h*0.86);
-  ctx.fillStyle = m.dark; ctx.fillRect(x, y+h*0.86, w, h*0.14);
-  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x+12, y+h*0.2, 12, h*0.5);
-  // ฝา = ผม ยกขึ้นตอนอ้าปาก
-  const lidY = y - open*h*0.12;
-  ctx.fillStyle = INK; ctx.fillRect(x-20, lidY-8, w+40, h*0.14+16);
-  ctx.fillStyle = m.lid; ctx.fillRect(x-12, lidY, w+24, h*0.14);
-  ctx.fillStyle = INK; ctx.fillRect(x+w/2-20, lidY-h*0.08, 40, h*0.08);
-  // ตา มองตามขยะ
-  const c = p.current, tx = c ? c.x : x+w/2, ty = c ? c.y : y;
-  const ex = w*0.2, ey = y + h*0.32, es = w*0.2;
-  for (const side of [-1, 1]){
-    const cx = x + w/2 + side*ex;
-    if (m.happy > 0){ // ตายิ้ม ^ ^
-      ctx.fillStyle = INK;
-      ctx.fillRect(cx-es/2, ey, es*0.3, 8); ctx.fillRect(cx-es*0.2, ey-10, es*0.4, 8); ctx.fillRect(cx+es*0.2, ey, es*0.3, 8);
-    } else if (m.yuck > 0){ // ตา X
-      ctx.fillStyle = INK;
-      for (let k=-2;k<=2;k++){ ctx.fillRect(cx+k*es*0.12-4, ey+k*es*0.12-4, 8, 8); ctx.fillRect(cx+k*es*0.12-4, ey-k*es*0.12-4, 8, 8); }
-    } else {
-      ctx.fillStyle = INK; ctx.fillRect(cx-es/2-6, ey-es/2-6, es+12, es+12);
-      ctx.fillStyle = '#fff'; ctx.fillRect(cx-es/2, ey-es/2, es, es);
-      const a = Math.atan2(ty-ey, tx-cx), d = es*0.22;
-      ctx.fillStyle = INK; ctx.fillRect(cx + Math.cos(a)*d - es*0.2, ey + Math.sin(a)*d - es*0.2, es*0.4, es*0.4);
-    }
+function block(x, y, s, col, alpha=1){ // บล็อกนูนแบบพิกเซล
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = INK; ctx.fillRect(x, y, s, s);
+  ctx.fillStyle = col[2]; ctx.fillRect(x+3, y+3, s-6, s-6);
+  ctx.fillStyle = col[0]; ctx.fillRect(x+3, y+3, s-10, s-10);
+  ctx.fillStyle = col[1]; ctx.fillRect(x+3, y+3, s-10, Math.max(4, s*0.14)); ctx.fillRect(x+3, y+3, Math.max(4, s*0.14), s-10);
+  ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x+s*0.22, y+s*0.22, s*0.14, s*0.14);
+  ctx.globalAlpha = 1;
+}
+function drawSpecialIcon(k, x, y, s){ // อัญมณีพิกเซล
+  const c = SPECIALS[k].col, u = s/8;
+  const px = (pts, col) => { ctx.fillStyle = col; pts.forEach(([a,b]) => ctx.fillRect(x + a*u, y + b*u, u, u)); };
+  px([[3,1],[4,1],[2,2],[3,2],[4,2],[5,2],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[2,4],[3,4],[4,4],[5,4],[3,5],[4,5]], c);
+  px([[3,2],[2,3]], '#ffffff');
+  if (Math.floor(performance.now()/300) % 3 === 0) px([[6,1],[1,5]], '#ffffff');
+}
+function drawBoard(p, t){
+  const th = THEMES[p.theme], cs = p.cs;
+  ctx.fillStyle = INK; ctx.fillRect(p.bx - 14, p.by - 14, p.S + 28, p.S + 28);
+  ctx.fillStyle = '#fff'; ctx.fillRect(p.bx - 8, p.by - 8, p.S + 16, p.S + 16);
+  ctx.fillStyle = th.bg; ctx.fillRect(p.bx, p.by, p.S, p.S);
+  // แถวที่จะเต็มถ้าวางตรงเงา
+  let hot = {rows:new Set(), cols:new Set()};
+  if (p.ghost && p.held !== null){
+    const pc = p.tray[p.held], g2 = p.grid.map(r => r.slice());
+    for (const [dx,dy] of pc.cells) g2[p.ghost.y+dy][p.ghost.x+dx] = 1;
+    for (let y=0;y<N;y++) if (g2[y].every(c=>c)) hot.rows.add(y);
+    for (let x=0;x<N;x++) if (g2.every(r=>r[x])) hot.cols.add(x);
   }
-  // ปาก
-  const mw = w*0.62, mh = h*0.06 + open*h*0.26, mx = x + (w-mw)/2, my = y + h*0.5;
-  ctx.fillStyle = INK; ctx.fillRect(mx, my, mw, mh);
-  if (mh > h*0.12){ ctx.fillStyle = '#ff6b8a'; ctx.fillRect(mx+mw*0.25, my+mh-h*0.06, mw*0.5, h*0.05); }
-  ctx.fillStyle = '#fff';
-  const teeth = 4, tw = mw/(teeth*2);
-  for (let i=0;i<teeth;i++) ctx.fillRect(mx + tw*(i*2+0.5), my, tw, Math.min(12, mh*0.4));
-  if (m.yuck > 0){ // ลิ้นแลบ
-    ctx.fillStyle = '#ff6b8a'; ctx.fillRect(mx+mw*0.35, my+mh-6, mw*0.3, h*0.1);
+  const blink = Math.floor(t/120) % 2;
+  for (let y=0;y<N;y++) for (let x=0;x<N;x++){
+    const cx = p.bx + x*cs, cy = p.by + y*cs;
+    ctx.fillStyle = th.grid; ctx.fillRect(cx + 3, cy + 3, cs - 6, cs - 6);
+    if (p.grid[y][x]) block(cx, cy, cs, p.grid[y][x]);
+    if (p.special[y][x]){ drawSpecialIcon(p.special[y][x], cx + cs*0.1, cy + cs*0.1, cs*0.8); }
+    if ((hot.rows.has(y) || hot.cols.has(x)) && blink){ ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillRect(cx, cy, cs, cs); }
   }
-}
-function drawMonsterLabels(p){
-  const fs = Math.max(15, Math.min((p.x1-p.x0)/keys.length*0.11, 26));
-  for (const m of p.mons){
-    label(m.name, m.x+m.w/2, m.y+m.h*0.93, fs);
-    if (m.yuck > 0.2) bubble(m.x+m.w/2, m.y-m.h*0.22, 'แหวะ!', '#ff6b5e');
-    else if (m.happy > 0.2) bubble(m.x+m.w/2, m.y-m.h*0.22, 'งั่ม ๆ!', '#7be39a');
+  // เงาตำแหน่งวาง + วงชาร์จ
+  if (p.ghost && p.held !== null){
+    const pc = p.tray[p.held];
+    for (const [dx,dy] of pc.cells) block(p.bx + (p.ghost.x+dx)*cs, p.by + (p.ghost.y+dy)*cs, cs, pc.col, 0.45);
   }
+  // บล็อกที่กำลังระเบิด
+  for (const c of p.clearing){ const k = c.t/0.45, s = cs*(0.4 + k*0.6), cx = p.bx + (c.x+0.5)*cs, cy = p.by + (c.y+0.5)*cs;
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = k; ctx.fillRect(cx - s/2, cy - s/2, s, s); ctx.globalAlpha = 1; }
 }
-function bubble(x, y, t, col){
-  const ctx = U, f = Math.max(18, Math.min(W,H)*0.035);
-  ctx.font = `800 ${f}px ${THAI}`;
-  const w = ctx.measureText(t).width + 28;
-  sticker(x-w/2, y-f*0.8, w, f*1.6, '#fff', 4);
-  ctx.fillStyle = col; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(t, x, y);
-}
-function drawItem(p){
-  const c = p.current; if (!c) return;
-  const r = p.R*(p.held?1.12:1), x = c.x, y = c.y;
-  if (!p.held && c.bounce <= 0){ ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=8; ctx.setLineDash([12,10]);
-    ctx.strokeRect(x-r*1.25, y-r*1.25, r*2.5, r*2.5); ctx.setLineDash([]); }
-  ctx.fillStyle = INK; ctx.fillRect(x-r-8, y-r-8, r*2+16, r*2+16);
-  ctx.fillStyle = '#fff8e7'; ctx.fillRect(x-r, y-r, r*2, r*2);
-  ctx.font = `${r*1.45}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(c.e, x, y + r*0.08);
-}
-function drawItemLabel(p){
-  const c = p.current; if (!c) return;
-  const r = p.R*(p.held?1.12:1);
-  label(c.n, c.x, c.y - r - Math.max(18, r*0.45), Math.max(18, r*0.45));
+function drawTray(p, t){
+  const tsz = Math.min(p.cs*0.6, (p.x1-p.x0)/3/6.5, (H - p.by - p.S - 30)/5.8);
+  p.tray.forEach((pc, i) => {
+    const sl = p.slots[i];
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 6; ctx.setLineDash([10,10]);
+    ctx.strokeRect(sl.x - tsz*3, sl.y - tsz*2.8, tsz*6, tsz*5.6); ctx.setLineDash([]);
+    if (!pc || p.held === i) return;
+    const ok = canPlaceAnywhere(p, pc), bob = Math.round(Math.sin(t/300 + i)*1)*4;
+    for (const [dx,dy] of pc.cells) block(sl.x - pc.w*tsz/2 + dx*tsz, sl.y - pc.h*tsz/2 + dy*tsz + bob, tsz, pc.col, ok ? 1 : 0.35);
+  });
+  // ชิ้นที่ถืออยู่
+  if (p.held !== null && p.hand.seen){
+    const pc = p.tray[p.held], h = p.hand, px = h.x - pc.w*p.cs/2, py = h.y - pc.h*p.cs - p.cs*0.8;
+    for (const [dx,dy] of pc.cells) block(px + dx*p.cs, py + dy*p.cs, p.cs, pc.col, 0.9);
+  }
 }
 const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 function drawHand(p){
@@ -430,62 +421,45 @@ function drawHand(p){
     ctx.lineCap='square';
     ctx.strokeStyle=INK; ctx.lineWidth=12; for (const [a,b] of BONES){ ctx.beginPath(); ctx.moveTo(p.pts[a].x,p.pts[a].y); ctx.lineTo(p.pts[b].x,p.pts[b].y); ctx.stroke(); }
     ctx.strokeStyle=col; ctx.lineWidth=6; for (const [a,b] of BONES){ ctx.beginPath(); ctx.moveTo(p.pts[a].x,p.pts[a].y); ctx.lineTo(p.pts[b].x,p.pts[b].y); ctx.stroke(); }
-    ctx.fillStyle='#fff'; for (const q of p.pts) ctx.fillRect(q.x-5,q.y-5,10,10);
   }
-  const r = Math.min(W,H)*0.045;
-  ctx.fillStyle=INK; ctx.fillRect(p.hand.x-r-6, p.hand.y-r-6, r*2+12, 14); ctx.fillRect(p.hand.x-r-6, p.hand.y+r-8, r*2+12, 14);
-  ctx.fillRect(p.hand.x-r-6, p.hand.y-r-6, 14, r*2+12); ctx.fillRect(p.hand.x+r-8, p.hand.y-r-6, 14, r*2+12);
-  ctx.fillStyle = p.held ? '#ffcf33' : col;
-  ctx.fillRect(p.hand.x-r-2, p.hand.y-r-2, r*2+4, 6); ctx.fillRect(p.hand.x-r-2, p.hand.y+r-4, r*2+4, 6);
-  ctx.fillRect(p.hand.x-r-2, p.hand.y-r-2, 6, r*2+4); ctx.fillRect(p.hand.x+r-4, p.hand.y-r-2, 6, r*2+4);
+  const r = Math.min(W,H)*0.035, hx = p.hand.x, hy = p.hand.y;
+  ctx.strokeStyle = INK; ctx.lineWidth = 14; ctx.strokeRect(hx - r, hy - r, r*2, r*2);
+  ctx.strokeStyle = p.held !== null ? '#ffcf33' : col; ctx.lineWidth = 6; ctx.strokeRect(hx - r, hy - r, r*2, r*2);
+  // แถบชาร์จตอนค้างมือ
+  if (p.ghost && p.held !== null){ const k = Math.min(1, p.dwell/DWELL); ctx.fillStyle = INK; ctx.fillRect(hx - r - 6, hy + r + 10, r*2 + 12, 24); ctx.fillStyle = '#7be39a'; ctx.fillRect(hx - r, hy + r + 16, r*2*k, 12); }
 }
 function drawHUD(p){
-  const ctx = U, f = Math.max(18, Math.min(W,H)*0.04);
+  const ctx = U, f = Math.max(17, Math.min(W,H)*0.036), remain = Math.max(0, GAME_TIME - playT);
   ctx.font = `800 ${f}px ${THAI}`; ctx.textBaseline='middle'; ctx.textAlign='left';
-  const remain = Math.max(0, GAME_TIME - playT);
-  const txt = mode==='solo' ? `เวลา ${Math.ceil(remain)}    ป้อนแล้ว ${p.score}` : `${P_NAMES[p.idx]}   ${p.score}`;
-  const w = ctx.measureText(txt).width + 36, x = mode==='solo' ? 16 : (p.idx===0 ? p.x0+16 : p.x1-16-w-8);
-  sticker(x, 16, w, f*1.7, mode==='duo' ? P_COLORS[p.idx] : PAPER);
+  const txt = mode==='solo' ? `คะแนน ${p.score}    เวลา ${Math.ceil(remain)}` : `${P_NAMES[p.idx]}  ${p.score}`;
+  const w = ctx.measureText(txt).width + 36, x = p.idx===1 ? p.x1-16-w-8 : p.x0+16;
+  sticker(x, 16, w, f*1.7, mode==='duo' ? P_COLORS[p.idx] : (remain < 10 ? '#c0392b' : PAPER));
   ctx.fillStyle = mode==='duo' ? '#000' : '#fff'; ctx.fillText(txt, x+18, 16+f*0.85);
-  if (p.combo >= 2){
-    ctx.font = `800 ${f*0.8}px ${THAI}`;
-    const ct = `คอมโบ x${p.combo}`, cw = ctx.measureText(ct).width + 24;
-    const cx = mode==='solo' ? 16 : (p.idx===0 ? p.x0+16 : p.x1-16-cw-8);
-    sticker(cx, 16+f*1.7+18, cw, f*1.2, '#ffcf33');
-    ctx.fillStyle = '#000'; ctx.fillText(ct, cx+12, 16+f*1.7+18+f*0.6);
-  }
+  ctx.font = `800 ${f*0.75}px ${THAI}`; const t2 = THEMES[p.theme].name, w2 = ctx.measureText(t2).width + 24;
+  const x2 = p.idx===1 ? p.x1-16-w2-8 : (mode==='solo' ? W - w2 - 32 : p.x0+16), y2 = mode==='solo' ? 16 : 16+f*1.7+18;
+  sticker(x2, y2, w2, f*1.15, '#ffcf33'); ctx.fillStyle = '#000'; ctx.fillText(t2, x2+12, y2+f*0.58);
 }
 function drawDuoMiddle(){
-  const ctx = U;
-  ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.setLineDash([14,12]);
-  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
-  const f = Math.max(16, Math.min(W,H)*0.035), remain = Math.max(0, GAME_TIME - playT);
-  const w = f*3.2;
-  sticker(W/2-w/2, 14, w, f*1.8, remain < 10 ? '#ff8e7a' : PAPER);
-  label(`${Math.ceil(remain)}`, W/2, 14+f*0.9, f*0.9, remain < 10 ? '#fff' : '#ffcf33');
-  label('VS', W/2, H*0.45, Math.min(W,H)*0.07, '#ffcf33');
+  const ctx = U, remain = Math.max(0, GAME_TIME - playT), f = Math.max(16, Math.min(W,H)*0.035);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.setLineDash([14,12]); ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+  sticker(W/2 - f*1.6, 14, f*3.2, f*1.8, remain < 10 ? '#c0392b' : PAPER);
+  label(`${Math.ceil(remain)}`, W/2, 14 + f*0.9, f*0.9, '#ffcf33');
 }
 function drawMsg(p, dt){
   const m = p.msg; if (!m) return;
   m.t -= dt; if (m.t <= 0){ p.msg = null; return; }
-  const ctx = U, pw = p.x1-p.x0, solo = mode==='solo';
-  const f = Math.max(18, Math.min(pw, H*1.6)*(solo?0.03:0.036));
-  const two = solo && m.text;
-  const w = Math.min(pw*0.88, 950), h = two ? f*3.3 : f*2, x = p.x0 + (pw-w)/2, y = solo ? H*0.13 : H*0.13;
-  ctx.globalAlpha = Math.min(1, m.t*2);
-  sticker(x, y, w, h, PAPER);
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`800 ${f}px ${THAI}`; ctx.fillStyle = m.ok ? '#7be39a' : '#ff6b5e';
-  ctx.fillText(m.title, x+w/2, y + (two ? f*1.05 : h/2), w-24);
-  if (two){ ctx.font=`${f*0.85}px ${THAI}`; ctx.fillStyle='#fff'; ctx.fillText(m.text, x+w/2, y+f*2.3, w-24); }
-  ctx.globalAlpha = 1;
+  const big = Math.min(p.x1-p.x0, H*1.4)*0.07, cx = (p.x0+p.x1)/2, cy = p.by + p.S*0.38;
+  U.globalAlpha = Math.min(1, m.t*2.5);
+  label(m.title, cx, cy, m.level ? big*0.7 : big, m.level ? '#7be39a' : '#ffcf33');
+  if (m.pts) label(`+${m.pts}`, cx, cy + big*1.1, big*0.6, '#fff');
+  if (m.gem) label('อัญมณีโบนัส +50!', cx, cy + big*1.9, big*0.5, '#8fe9ff');
+  U.globalAlpha = 1;
 }
 function drawParticles(dt){
   for (const p of particles){
-    if (p.slow){ p.vx += (Math.random()-0.5)*40*dt; p.vy = Math.min(p.vy + 40*dt, 260); } else p.vy += 900*dt;
-    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt*(p.slow?0.6:1.3);
+    p.vy += (p.g ?? 900)*dt; p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt*(p.g===30?0.6:1.2);
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life)); ctx.fillStyle = p.c;
-    const z = p.slow ? 12 : 12; ctx.fillRect(Math.round(p.x/4)*4, Math.round(p.y/4)*4, z, z);
+    ctx.fillRect(Math.round(p.x/4)*4, Math.round(p.y/4)*4, 12, 12);
   }
   ctx.globalAlpha = 1; particles = particles.filter(p => p.life > 0 && p.y < H+40);
 }
@@ -493,39 +467,39 @@ function drawCountdown(dt){
   countdown -= dt;
   const n = Math.ceil(countdown);
   if (n !== lastBeep && n >= 1){ sfx.beep(); lastBeep = n; }
-  if (countdown <= 0){
-    sfx.go(); state = 'play'; playT = 0; players.forEach(nextItem); banner = {text:'ไป!', t:0.8};
-    return;
-  }
+  if (countdown <= 0){ sfx.go(); state = 'play'; playT = 0; return; }
   const frac = countdown - Math.floor(countdown);
-  label(String(n), W/2, H*0.36, Math.min(W,H)*(0.2 + 0.07*frac), '#ffcf33');
-  label(mode==='duo' ? 'ยืนคนละฝั่ง แล้วยกมือขึ้น!' : 'มอนสเตอร์หิวแล้ว ยกมือขึ้นเลย!', W/2, H*0.55, Math.min(W,H)*0.05);
+  label(String(n), W/2, H*0.4, Math.min(W,H)*(0.2 + 0.07*frac), '#ffcf33');
+  label(mode==='duo' ? 'ยืนคนละฝั่ง แล้วยกมือขึ้น!' : 'ยกมือขึ้น เตรียมต่อบล็อก!', W/2, H*0.6, Math.min(W,H)*0.05);
 }
-function drawBanner(dt){
-  if (!banner) return;
-  if (banner.p){ const p = banner.p, s = 1 + Math.sin(performance.now()/180)*0.06;
-    label('ชนะ!', (p.x0+p.x1)/2, H*0.36, Math.min(W,H)*0.16*s, P_COLORS[p.idx]); return; }
-  banner.t -= dt; if (banner.t <= 0){ banner = null; return; }
-  label(banner.text, W/2, H*0.38, Math.min(W,H)*0.22*(1+(0.8-banner.t)*0.4), '#7be39a');
+function drawWinner(){
+  if (!banner || !banner.p) return;
+  const p = banner.p, s = 1 + Math.sin(performance.now()/180)*0.06;
+  label('ชนะ!', (p.x0+p.x1)/2, H*0.4, Math.min(W,H)*0.16*s, P_COLORS[p.idx]);
 }
 
+let lastTick = 0;
 function loop(t){
   const dt = Math.min(0.05, (t-lastT)/1000 || 0); lastT = t;
-  trackHands(); U.clearRect(0,0,W,H); drawBG(t);
+  trackHands(); U.clearRect(0,0,W,H);
+  const sh = shake > 0 ? (Math.random()-0.5)*shake*40 : 0; shake = Math.max(0, shake - dt);
+  ctx.setTransform(1/PX,0,0,1/PX,sh/PX,0);
+  drawBG(t);
   if (state !== 'menu' && players.length){
     if (state === 'play'){
       playT += dt;
+      const remain = GAME_TIME - playT;
+      if (remain < 10 && Math.ceil(remain) !== lastTick){ lastTick = Math.ceil(remain); sfx.tick(); }
       players.forEach(p => updatePlayer(p, dt));
-      if (playT >= GAME_TIME){ players.forEach(p => p.held = false); endGame(); }
+      if (remain <= 0) endGame();
     }
+    players.forEach(p => drawBoard(p, t));
+    players.forEach(p => drawTray(p, t));
     if (mode === 'duo') drawDuoMiddle();
-    players.forEach(p => p.mons.forEach(m => drawMonster(m, p, t)));
-    players.forEach(drawMonsterLabels);
-    if (state === 'play'){ players.forEach(drawItem); players.forEach(drawItemLabel); }
     players.forEach(drawHUD);
     players.forEach(p => drawMsg(p, dt));
     if (state === 'countdown') drawCountdown(dt);
-    drawBanner(dt);
+    drawWinner();
   }
   drawParticles(dt);
   players.forEach(drawHand);
@@ -542,8 +516,8 @@ function pixelTitle(el, text, color='#ffcf33'){
   c.style.width = c.width*scale + 'px'; c.style.height = c.height*scale + 'px';
   el.innerHTML = ''; el.appendChild(c);
 }
-window.__p = () => players;
-document.fonts.ready.then(()=> pixelTitle(document.querySelector('#start h1'), 'มอนสเตอร์หิวขยะ!', '#7be39a'));
+window.__b = () => ({players, state, playT});
+document.fonts.ready.then(()=> pixelTitle(document.querySelector('#start h1'), 'บล็อกระเบิดตาราง!', '#7be39a'));
 resize(); initHands(); requestAnimationFrame(loop);
 </script>
 </body>
